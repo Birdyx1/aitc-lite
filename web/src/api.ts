@@ -51,6 +51,89 @@ export interface ConnectionTestResult {
   elapsed_ms: number
 }
 
+export interface FeatureItem {
+  id: string
+  module: string
+  feature: string
+  description: string
+  acceptance_criteria: string
+  constraints: string
+  priority: 'P0' | 'P1' | 'P2'
+  included: boolean
+}
+
+export type FeatureSource = 'manual' | 'mock' | 'real'
+
+export interface FeatureSheet {
+  revision: number
+  current_hash: string
+  source_hash: string
+  source: FeatureSource
+  model: string
+  confirmed: boolean
+  stale: boolean
+  items: FeatureItem[]
+}
+
+export interface FeatureSaveInput {
+  expected_revision: number
+  input_hash: string
+  items: FeatureItem[]
+  source: FeatureSource
+  model: string
+  confirmed: boolean
+}
+
+export interface FeaturePreview {
+  base_revision: number
+  input_hash: string
+  source: 'mock' | 'real'
+  model: string
+  items: FeatureItem[]
+}
+
+export type CaseStrategy = 'full' | 'quick'
+
+export interface CaseGenerateInput {
+  request_id: string
+  feature_id: string
+  expected_revision: number
+  input_hash: string
+  strategy: CaseStrategy
+}
+
+export interface CaseDraft {
+  id: string
+  title: string
+  priority: 'P0' | 'P1' | 'P2'
+  case_type: 'functional' | 'boundary' | 'exception'
+  is_smoke: boolean
+  precondition: string
+  steps: string[]
+  expected_result: string
+}
+
+export interface CaseGenerationSummary {
+  id: string
+  feature_name: string
+  strategy: CaseStrategy
+  source: 'real' | 'mock'
+  model: string
+  case_count: number
+  created_at: string
+  outdated: boolean
+}
+
+export interface CaseGeneration extends CaseGenerationSummary {
+  sheet_revision: number
+  input_hash: string
+  feature_snapshot: FeatureItem
+  requirement_snapshot: { title: string; content: string }
+  prompt_version: string
+  graph_nodes: string[]
+  cases: CaseDraft[]
+}
+
 async function request<T>(path: string, options: RequestInit = {}, timeoutMs = 15_000): Promise<T> {
   let response: Response
   try {
@@ -101,5 +184,27 @@ export const settingsApi = {
   test: (timeoutSeconds: number) => request<ConnectionTestResult>('/settings/generation/test', {
     method: 'POST',
   }, (timeoutSeconds + 5) * 1000),
+}
+
+const featurePath = (projectId: number, requirementId: number) => `/projects/${projectId}/requirements/${requirementId}/features`
+
+export const featuresApi = {
+  get: (projectId: number, requirementId: number) => request<FeatureSheet>(featurePath(projectId, requirementId)),
+  analyze: (projectId: number, requirementId: number, timeoutSeconds: number) => request<FeaturePreview>(
+    `${featurePath(projectId, requirementId)}/analyze`, { method: 'POST' }, (timeoutSeconds + 5) * 1000,
+  ),
+  save: (projectId: number, requirementId: number, data: FeatureSaveInput) => request<FeatureSheet>(
+    featurePath(projectId, requirementId), { method: 'PUT', body: JSON.stringify(data) },
+  ),
+}
+
+const casePath = (projectId: number, requirementId: number) => `/projects/${projectId}/requirements/${requirementId}/case-generations`
+
+export const caseGenerationsApi = {
+  list: (projectId: number, requirementId: number) => request<CaseGenerationSummary[]>(casePath(projectId, requirementId)),
+  get: (projectId: number, requirementId: number, id: string) => request<CaseGeneration>(`${casePath(projectId, requirementId)}/${id}`),
+  generate: (projectId: number, requirementId: number, payload: CaseGenerateInput, timeoutSeconds: number) => request<CaseGeneration>(
+    casePath(projectId, requirementId), { method: 'POST', body: JSON.stringify(payload) }, (timeoutSeconds + 10) * 1000,
+  ),
 }
 

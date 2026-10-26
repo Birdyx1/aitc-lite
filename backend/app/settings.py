@@ -49,11 +49,15 @@ def save_settings(payload: GenerationSettingsInput, session: Session = Depends(g
 
 @router.post("/test", response_model=ConnectionTestOutput)
 async def test_settings(request: Request, session: Session = Depends(get_session)):
+    config = load_model_config(session)
+    return await test_connection(config, transport=request.app.state.llm_transport)
+
+
+def load_model_config(session: Session) -> ModelConfig:
     settings = session.get(GenerationSettings, 1)
     if settings is None:
         raise HTTPException(status_code=400, detail="请先保存生成模型配置。")
-    config = ModelConfig(
+    return ModelConfig(
         base_url=settings.base_url, model=settings.model, api_key=settings.api_key,
         mock_mode=settings.mock_mode, timeout_seconds=settings.timeout_seconds,
     )
-    return await test_connection(config, transport=request.app.state.llm_transport)

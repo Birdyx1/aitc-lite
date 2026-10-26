@@ -11,6 +11,16 @@ export const router = createRouter({
       meta: { title: '需求管理', module: '模块 02 · 需求文本管理' },
     },
     {
+      path: '/projects/:projectId/requirements/:requirementId/features',
+      component: () => import('./pages/RequirementFeatures.vue'),
+      meta: { title: '功能点确认', module: '模块 04 · 功能点拆解' },
+    },
+    {
+      path: '/projects/:projectId/requirements/:requirementId/cases',
+      component: () => import('./pages/CaseGeneration.vue'),
+      meta: { title: '用例草稿', module: '模块 05 · 用例生成' },
+    },
+    {
       path: '/settings', component: () => import('./pages/Settings.vue'),
       meta: { title: '模型设置', module: '模块 03 · 生成模型配置' },
     },

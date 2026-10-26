@@ -12,7 +12,7 @@ const route = useRoute()
       <router-link to="/" class="nav-item" :class="{ active: route.path !== '/settings' }" :aria-current="route.path === '/' ? 'page' : undefined"><span class="nav-icon">▦</span>项目管理</router-link>
       <router-link to="/settings" class="nav-item" :class="{ active: route.path === '/settings' }" :aria-current="route.path === '/settings' ? 'page' : undefined"><span class="nav-icon">⚙</span>模型设置</router-link>
       <div class="sidebar-note"><span class="status-dot"></span>本地工作空间<small>数据保存在本机 SQLite</small></div>
-      <div class="sidebar-footer">AITC Lite <span>v0.3.0</span></div>
+      <div class="sidebar-footer">AITC Lite <span>v0.5.0</span></div>
     </aside>
     <div class="main-shell">
       <header class="topbar">

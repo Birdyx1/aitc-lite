@@ -182,8 +182,10 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
           </el-table-column>
           <el-table-column label="创建时间" width="160"><template #default="{ row }"><span class="table-date">{{ formatDate(row.created_at) }}</span></template></el-table-column>
           <el-table-column label="最近更新" width="160"><template #default="{ row }"><span class="table-date">{{ formatDate(row.updated_at) }}</span></template></el-table-column>
-          <el-table-column label="操作" width="210" align="right">
+          <el-table-column label="操作" width="350" align="right">
             <template #default="{ row }">
+              <router-link :to="`/projects/${projectId}/requirements/${row.id}/features`" class="row-link">功能点</router-link>
+              <router-link :to="`/projects/${projectId}/requirements/${row.id}/cases`" class="row-link">用例草稿</router-link>
               <el-button link type="primary" :disabled="busyId !== null" @click="openRequirement(row, false)">查看</el-button>
               <el-button link type="primary" :disabled="busyId !== null" @click="openRequirement(row, true)">编辑</el-button>
               <el-button link type="danger" :loading="busyId === row.id" :disabled="busyId !== null" @click="removeRequirement(row)">删除</el-button>
@@ -204,6 +206,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
 
   <el-dialog v-model="editorOpen" :title="editingId === null ? '新建需求' : '编辑需求'" width="800px" destroy-on-close :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving" :before-close="closeEditor" @opened="formRef?.clearValidate()">
     <p class="dialog-intro">标题用于检索，正文保留原始换行和缩进。仅在点击保存后写入数据库。</p>
+    <p v-if="editingId !== null" class="field-help">修改需求后，已有功能点需重新核对并确认。</p>
     <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon class="form-error" />
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" :disabled="saving" @submit.prevent="saveRequirement">
       <el-form-item label="需求标题" prop="title"><el-input v-model="form.title" placeholder="例如：用户登录需求 v1" maxlength="200" show-word-limit /></el-form-item>

@@ -10,6 +10,8 @@ from .database import Base, create_database
 from .projects import router
 from .requirements import router as requirements_router
 from .settings import router as settings_router
+from .features import router as features_router
+from .case_generations import router as case_generations_router
 
 DEFAULT_DATABASE = Path(__file__).resolve().parents[1] / "data" / "aitc-lite.sqlite3"
 
@@ -23,13 +25,15 @@ def create_app(database_path: Path = DEFAULT_DATABASE, *, llm_transport=None) ->
         yield
         engine.dispose()
 
-    app = FastAPI(title="AITC Lite", version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title="AITC Lite", version="0.5.0", lifespan=lifespan)
     app.state.session_factory = session_factory
     # 测试可注入 httpx.MockTransport；真实应用默认使用正常网络传输。
     app.state.llm_transport = llm_transport
     app.include_router(router)
     app.include_router(requirements_router)
     app.include_router(settings_router)
+    app.include_router(features_router)
+    app.include_router(case_generations_router)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
@@ -40,7 +44,7 @@ def create_app(database_path: Path = DEFAULT_DATABASE, *, llm_transport=None) ->
 
     @app.get("/api/health", tags=["状态"])
     def health():
-        return {"status": "ok", "module": "model-settings", "version": "0.3.0"}
+        return {"status": "ok", "module": "case-generation", "version": "0.5.0"}
 
     return app
 

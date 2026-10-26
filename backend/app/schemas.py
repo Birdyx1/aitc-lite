@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from typing import Annotated, Literal
+from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_serializer, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints, field_serializer, field_validator, model_validator
 
 
 class ProjectInput(BaseModel):
@@ -121,4 +123,109 @@ class ConnectionTestOutput(BaseModel):
     message: str
     reply: str
     elapsed_ms: int
+
+
+class FeatureFields(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    module: str = Field(min_length=1, max_length=100)
+    feature: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=4000)
+    acceptance_criteria: str = Field(default="", max_length=4000)
+    constraints: str = Field(default="", max_length=2000)
+    priority: Literal["P0", "P1", "P2"] = "P1"
+
+
+class FeatureItem(FeatureFields):
+    id: UUID = Field(default_factory=uuid4)
+    included: bool = True
+
+
+class FeatureSaveInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int = Field(ge=0)
+    input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    items: list[FeatureItem] = Field(max_length=50)
+    source: Literal["manual", "mock", "real"] = "manual"
+    model: str = Field(default="", max_length=200)
+    confirmed: bool = False
+
+    @model_validator(mode="after")
+    def validate_items(self):
+        if len({item.id for item in self.items}) != len(self.items):
+            raise ValueError("功能点 ID 不能重复")
+        if self.confirmed and not any(item.included for item in self.items):
+            raise ValueError("至少选择一个功能点后才能确认")
+        return self
+
+
+class FeatureSheetOutput(BaseModel):
+    revision: int
+    current_hash: str
+    source_hash: str
+    source: Literal["manual", "mock", "real"]
+    model: str
+    confirmed: bool
+    stale: bool
+    items: list[FeatureItem]
+
+
+class FeaturePreviewOutput(BaseModel):
+    base_revision: int
+    input_hash: str
+    source: Literal["mock", "real"]
+    model: str
+    items: list[FeatureItem]
+
+
+class CaseFields(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: str = Field(min_length=1, max_length=200)
+    priority: Literal["P0", "P1", "P2"]
+    case_type: Literal["functional", "boundary", "exception"]
+    is_smoke: bool
+    precondition: str = Field(default="", max_length=2000)
+    steps: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]] = Field(min_length=1, max_length=20)
+    expected_result: str = Field(min_length=1, max_length=4000)
+
+
+class CaseDraftOutput(CaseFields):
+    id: UUID
+
+
+class CaseGenerateInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: UUID
+    feature_id: UUID
+    expected_revision: int = Field(ge=1)
+    input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    strategy: Literal["full", "quick"] = "full"
+
+
+class CaseGenerationSummary(BaseModel):
+    id: UUID
+    feature_name: str
+    strategy: Literal["full", "quick"]
+    source: Literal["real", "mock"]
+    model: str
+    case_count: int
+    created_at: datetime
+    outdated: bool
+
+    @field_serializer("created_at")
+    def serialize_time(self, value: datetime) -> str:
+        return value.replace(tzinfo=timezone.utc).isoformat()
+
+
+class CaseGenerationOutput(CaseGenerationSummary):
+    sheet_revision: int
+    input_hash: str
+    feature_snapshot: FeatureItem
+    requirement_snapshot: dict[str, str]
+    prompt_version: str
+    graph_nodes: list[str]
+    cases: list[CaseDraftOutput]
 

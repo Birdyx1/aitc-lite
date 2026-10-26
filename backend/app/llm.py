@@ -1,4 +1,4 @@
-"""最小连接验证器。仅发送固定测试消息，不上传项目或需求内容。"""
+"""共用文本模型调用；连接验证使用固定短消息，业务调用显式提供消息。"""
 
 import asyncio
 from dataclasses import dataclass, field
@@ -26,17 +26,24 @@ async def test_connection(config: ModelConfig, transport=None) -> ConnectionTest
             mode="mock", message="Mock 流程验证通过，本次未连接外部模型。",
             reply="AITC_OK（Mock）", elapsed_ms=0,
         )
+    start = perf_counter()
+    reply = await chat_completion(config, [
+        {"role": "user", "content": "这是连接验证，请只回复 AITC_OK。"},
+    ], max_tokens=64, transport=transport)
+    return ConnectionTestOutput(
+        mode="real", message="真实模型连接通过，已收到对话响应。",
+        reply=reply[:200], elapsed_ms=round((perf_counter() - start) * 1000),
+    )
+
+
+async def chat_completion(config: ModelConfig, messages: list[dict], max_tokens: int, transport=None) -> str:
     if not config.base_url or not config.model:
         raise HTTPException(status_code=400, detail="请先保存生成模型配置，或显式开启 Mock 模式。")
-
     headers = {"Authorization": f"Bearer {config.api_key}"} if config.api_key else {}
-    payload = {"model": config.model, "messages": [
-        {"role": "user", "content": "这是连接验证，请只回复 AITC_OK。"},
-    ], "max_tokens": 64, "stream": False}
+    payload = {"model": config.model, "messages": messages, "max_tokens": max_tokens, "stream": False}
     if urlsplit(config.base_url).hostname == "api.deepseek.com":
-        # DeepSeek 默认开启思考；短连接探针关闭思考，避免输出预算耗尽而无正文。
+        # 连接验证和本阶段结构化拆解使用非思考模式。
         payload["thinking"] = {"type": "disabled"}
-    start = perf_counter()
     try:
         # 同时限制整个调用和各网络阶段；禁止重定向，避免将凭据带到其他地址。
         async with asyncio.timeout(config.timeout_seconds):
@@ -62,7 +69,12 @@ async def test_connection(config: ModelConfig, transport=None) -> ConnectionTest
         raise HTTPException(status_code=502, detail=f"模型服务返回 HTTP {response.status_code}，请检查根地址、模型名称与服务状态。")
     try:
         body = response.json()
-        reply = body["choices"][0]["message"]["content"]
+        choice = body["choices"][0]
+        if not isinstance(choice, dict):
+            raise ValueError("invalid choice")
+        if choice.get("finish_reason") == "length":
+            raise HTTPException(status_code=502, detail="模型输出达到长度上限，请缩短需求后重试，或拆分为多份需求。")
+        reply = choice["message"]["content"]
         if not isinstance(reply, str) or not reply.strip():
             raise ValueError("empty reply")
     except (ValueError, KeyError, IndexError, TypeError):
@@ -70,7 +82,4 @@ async def test_connection(config: ModelConfig, transport=None) -> ConnectionTest
 
     if config.api_key:
         reply = reply.replace(config.api_key, "[已隐藏]")
-    return ConnectionTestOutput(
-        mode="real", message="真实模型连接通过，已收到对话响应。",
-        reply=reply[:200], elapsed_ms=round((perf_counter() - start) * 1000),
-    )
+    return reply
