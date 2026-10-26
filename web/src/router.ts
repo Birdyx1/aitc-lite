@@ -18,7 +18,11 @@ export const router = createRouter({
     {
       path: '/projects/:projectId/requirements/:requirementId/cases',
       component: () => import('./pages/CaseGeneration.vue'),
-      meta: { title: '用例草稿', module: '模块 05 · 用例生成' },
+      meta: { title: '用例生成与评审', module: '模块 05–06 · 生成与评审' },
+    },
+    {
+      path: '/projects/:projectId/testcases', component: () => import('./pages/ProjectTestcases.vue'),
+      meta: { title: '已采纳用例', module: '模块 06 · 人工评审' },
     },
     {
       path: '/settings', component: () => import('./pages/Settings.vue'),

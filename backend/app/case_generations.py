@@ -76,11 +76,16 @@ def list_generations(project_id: int, requirement_id: int, session: Session = De
 
 @router.get("/{generation_id}", response_model=CaseGenerationOutput)
 def get_generation(project_id: int, requirement_id: int, generation_id: UUID, session: Session = Depends(get_session)):
+    requirement, generation = require_generation(session, project_id, requirement_id, str(generation_id))
+    return detail(session, requirement, generation)
+
+
+def require_generation(session: Session, project_id: int, requirement_id: int, generation_id: str):
     requirement = require_requirement(session, project_id, requirement_id)
     generation = session.get(CaseGeneration, str(generation_id))
     if generation is None or generation.requirement_id != requirement_id:
         raise HTTPException(status_code=404, detail="该需求下的生成记录不存在。")
-    return detail(session, requirement, generation)
+    return requirement, generation
 
 
 @router.post("", response_model=CaseGenerationOutput, status_code=201)

@@ -102,8 +102,7 @@ export interface CaseGenerateInput {
   strategy: CaseStrategy
 }
 
-export interface CaseDraft {
-  id: string
+export interface CaseFields {
   title: string
   priority: 'P0' | 'P1' | 'P2'
   case_type: 'functional' | 'boundary' | 'exception'
@@ -111,6 +110,39 @@ export interface CaseDraft {
   precondition: string
   steps: string[]
   expected_result: string
+}
+
+export interface CaseDraft extends CaseFields { id: string }
+
+export interface CaseReview {
+  draft_id: string
+  revision: number
+  status: 'pending' | 'accepted' | 'rejected'
+  original: CaseFields
+  current: CaseFields
+  was_edited: boolean
+  rejection_reason: string
+}
+
+export interface CaseReviews { generation_id: string; items: CaseReview[] }
+
+export interface CaseReviewInput {
+  expected_revision: number
+  action: 'edit' | 'accept' | 'reject'
+  fields?: CaseFields
+  rejection_reason?: string
+}
+
+export interface AcceptedCase extends CaseFields {
+  id: string
+  generation_id: string
+  requirement_id: number
+  requirement_title: string
+  module: string
+  feature_name: string
+  source: 'real' | 'mock'
+  outdated: boolean
+  was_edited: boolean
 }
 
 export interface CaseGenerationSummary {
@@ -206,5 +238,13 @@ export const caseGenerationsApi = {
   generate: (projectId: number, requirementId: number, payload: CaseGenerateInput, timeoutSeconds: number) => request<CaseGeneration>(
     casePath(projectId, requirementId), { method: 'POST', body: JSON.stringify(payload) }, (timeoutSeconds + 10) * 1000,
   ),
+}
+
+export const reviewsApi = {
+  list: (projectId: number, requirementId: number, generationId: string) => request<CaseReviews>(`${casePath(projectId, requirementId)}/${generationId}/reviews`),
+  save: (projectId: number, requirementId: number, generationId: string, draftId: string, data: CaseReviewInput) => request<CaseReview>(
+    `${casePath(projectId, requirementId)}/${generationId}/reviews/${draftId}`, { method: 'PUT', body: JSON.stringify(data) },
+  ),
+  accepted: (projectId: number) => request<AcceptedCase[]>(`/projects/${projectId}/testcases`),
 }
 

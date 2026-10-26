@@ -106,3 +106,15 @@ class CaseDraft(Base):
     expected_result: Mapped[str] = mapped_column(Text)
     sort_order: Mapped[int]
 
+
+class CaseReview(Base):
+    __tablename__ = "case_reviews"
+
+    draft_id: Mapped[str] = mapped_column(ForeignKey("case_drafts.id", ondelete="CASCADE"), primary_key=True)
+    revision: Mapped[int] = mapped_column(default=1)
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    edited_case: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    was_edited: Mapped[bool] = mapped_column(default=False)
+    rejection_reason: Mapped[str] = mapped_column(String(1000), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+

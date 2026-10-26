@@ -229,3 +229,51 @@ class CaseGenerationOutput(CaseGenerationSummary):
     graph_nodes: list[str]
     cases: list[CaseDraftOutput]
 
+
+class CaseReviewInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    expected_revision: int = Field(ge=0)
+    action: Literal["edit", "accept", "reject"]
+    fields: CaseFields | None = None
+    rejection_reason: str = Field(default="", max_length=1000)
+
+    @model_validator(mode="after")
+    def check_action(self):
+        if self.action == "edit" and self.fields is None:
+            raise ValueError("编辑操作必须提供用例字段")
+        if self.action != "edit" and self.fields is not None:
+            raise ValueError("请先保存编辑，再进行采纳或驳回")
+        if self.action == "reject" and not self.rejection_reason:
+            raise ValueError("驳回原因不能为空")
+        if self.action != "reject" and self.rejection_reason:
+            raise ValueError("当前操作不接受驳回原因")
+        return self
+
+
+class CaseReviewOutput(BaseModel):
+    draft_id: UUID
+    revision: int
+    status: Literal["pending", "accepted", "rejected"]
+    original: CaseFields
+    current: CaseFields
+    was_edited: bool
+    rejection_reason: str
+
+
+class CaseReviewsOutput(BaseModel):
+    generation_id: UUID
+    items: list[CaseReviewOutput]
+
+
+class AcceptedCaseOutput(CaseFields):
+    id: UUID
+    generation_id: UUID
+    requirement_id: int
+    requirement_title: str
+    module: str
+    feature_name: str
+    source: Literal["real", "mock"]
+    outdated: bool
+    was_edited: bool
+

@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { caseGenerationsApi, featuresApi, requirementsApi, settingsApi } from '../api'
 import type { CaseGenerateInput, CaseGeneration, CaseGenerationSummary, CaseStrategy, FeatureSheet, Requirement } from '../api'
 import { errorMessage, formatDate } from '../utils'
+import CaseReviewPanel from '../components/CaseReviewPanel.vue'
 
 const route = useRoute()
 const projectId = Number(route.params.projectId)
@@ -18,17 +19,17 @@ const strategy = ref<CaseStrategy>('full')
 const loading = ref(false)
 const generating = ref(false)
 const reading = ref(false)
+const reviewBusy = ref(false)
 const error = ref('')
 const actionError = ref('')
 const pending = ref<CaseGenerateInput>()
-const busy = computed(() => loading.value || generating.value || reading.value)
+const busy = computed(() => loading.value || generating.value || reading.value || reviewBusy.value)
 const available = computed(() => sheet.value?.items.filter(item => item.included) ?? [])
 const canGenerate = computed(() => !!sheet.value?.confirmed && !sheet.value.stale && !!featureId.value && !busy.value)
-const typeNames = { functional: '功能', boundary: '边界', exception: '异常' }
 const stageNames: Record<string, string> = { prepare: '准备输入', generate: '生成用例', validate: '结构与策略校验' }
 
 async function loadRun(id: string) {
-  if (generating.value || reading.value) return
+  if (busy.value) return
   reading.value = true
   actionError.value = ''
   try {
@@ -88,10 +89,10 @@ async function generate() {
 }
 
 watch([featureId, strategy], () => { pending.value = undefined })
-onBeforeRouteLeave(() => !generating.value)
-onBeforeRouteUpdate(() => !generating.value)
+onBeforeRouteLeave(() => !generating.value && !reviewBusy.value)
+onBeforeRouteUpdate(() => !generating.value && !reviewBusy.value)
 function warnBeforeUnload(event: BeforeUnloadEvent) {
-  if (generating.value) { event.preventDefault(); event.returnValue = '' }
+  if (generating.value || reviewBusy.value) { event.preventDefault(); event.returnValue = '' }
 }
 onMounted(() => { loadPage(); window.addEventListener('beforeunload', warnBeforeUnload) })
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnload))
@@ -100,7 +101,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
 <template>
   <main>
     <router-link :to="`/projects/${projectId}/requirements`" class="back-link">← 返回需求列表</router-link>
-    <div class="page-heading"><div><div class="eyebrow">TEST CASE DRAFTS</div><h1>{{ requirement?.title || '用例草稿' }}</h1><p>从已确认的功能点开始，逐个生成可核对的测试用例。</p></div><el-button :loading="loading" :disabled="generating || reading" @click="loadPage">重新加载</el-button></div>
+    <div class="page-heading"><div><div class="eyebrow">TEST CASE DRAFTS</div><h1>{{ requirement?.title || '用例草稿' }}</h1><p>从已确认的功能点开始，逐个生成可核对的测试用例。</p></div><el-button :loading="loading" :disabled="generating || reading || reviewBusy" @click="loadPage">重新加载</el-button></div>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
     <div v-else-if="loading" class="loading-state"><el-skeleton :rows="6" animated /></div>
     <template v-else-if="requirement">
@@ -119,13 +120,10 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
       </section>
 
       <section v-if="selected" class="project-panel draft-panel" aria-labelledby="draft-title">
-        <div class="panel-toolbar"><div><h2 id="draft-title">{{ selected.feature_name }} <span>{{ selected.case_count }} 条草稿</span></h2><p>{{ formatDate(selected.created_at) }} · {{ selected.strategy === 'quick' ? '快速冒烟' : '完整用例' }} · {{ selected.source === 'mock' ? 'Mock 示例（未联网）' : selected.model }}</p></div><el-tag type="warning">待人工评审</el-tag></div>
+        <div class="panel-toolbar"><div><h2 id="draft-title">{{ selected.feature_name }} <span>{{ selected.case_count }} 条草稿</span></h2><p>{{ formatDate(selected.created_at) }} · {{ selected.strategy === 'quick' ? '快速冒烟' : '完整用例' }} · {{ selected.source === 'mock' ? 'Mock 示例（未联网）' : selected.model }}</p></div><el-tag type="info">人工评审</el-tag></div>
         <div class="draft-panel-body">
           <el-alert v-if="selected.outdated" title="该草稿来自历史输入，当前需求或功能点已变化。可展开生成依据核对。" type="warning" :closable="false" show-icon class="feature-notice" />
-          <article v-for="(draft, index) in selected.cases" :key="draft.id" class="case-card">
-            <div class="case-card-title"><h3>{{ index + 1 }}. {{ draft.title }}</h3><span>{{ draft.priority }} · {{ typeNames[draft.case_type] }}</span><el-tag v-if="draft.is_smoke" size="small">冒烟</el-tag></div>
-            <dl><dt>前置条件</dt><dd>{{ draft.precondition || '无' }}</dd><dt>操作步骤</dt><dd><ol><li v-for="(step, stepIndex) in draft.steps" :key="stepIndex">{{ step }}</li></ol></dd><dt>预期结果</dt><dd>{{ draft.expected_result }}</dd></dl>
-          </article>
+          <CaseReviewPanel :key="selected.id" :project-id="projectId" :requirement-id="requirementId" :generation="selected" @busy="reviewBusy = $event" />
           <details class="generation-evidence"><summary>生成依据与过程</summary><p>{{ selected.graph_nodes.map(node => stageNames[node] || node).join(' → ') }}</p><p>提示词版本：{{ selected.prompt_version }} · 功能点清单版本：{{ selected.sheet_revision }}</p><h4>{{ selected.feature_snapshot.module }} / {{ selected.feature_snapshot.feature }}</h4><pre>{{ selected.feature_snapshot.description }}
 验收标准：{{ selected.feature_snapshot.acceptance_criteria || '未提供' }}
 约束：{{ selected.feature_snapshot.constraints || '未提供' }}</pre><details><summary>生成时的需求原文</summary><pre>{{ selected.requirement_snapshot.content }}</pre></details></details>
