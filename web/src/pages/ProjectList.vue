@@ -72,7 +72,7 @@ async function saveProject() {
 
 async function removeProject(project: Project) {
   try {
-    await ElMessageBox.confirm(`确定删除“${project.name}”吗？该项目下的全部需求也会一并删除，且无法恢复。`, '删除项目', {
+    await ElMessageBox.confirm(`确定删除“${project.name}”吗？该项目下的需求、生成用例、执行任务与记录、评测样本和运行、生成任务、知识文档与分块、助手对话与调用记录会一并删除，且无法恢复。`, '删除项目', {
       confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning',
       confirmButtonClass: 'el-button--danger',
     })
@@ -104,10 +104,10 @@ onMounted(loadProjects)
           <div v-if="loading" class="loading-state"><el-skeleton :rows="5" animated /></div>
           <template v-else-if="!error">
             <el-table v-if="filteredProjects.length" :data="filteredProjects" row-key="id" class="project-table">
-              <el-table-column label="项目" min-width="350"><template #default="{ row }"><div class="project-name-cell"><span class="project-avatar">{{ row.name.slice(0, 1) }}</span><div class="project-copy"><router-link :to="`/projects/${row.id}/requirements`" class="project-link">{{ row.name }}</router-link><p :title="row.description">{{ row.description || '暂无项目描述' }}</p></div></div></template></el-table-column>
+              <el-table-column label="项目" min-width="350"><template #default="{ row }"><div class="project-name-cell"><span class="project-avatar">{{ row.name.slice(0, 1) }}</span><div class="project-copy"><router-link :to="`/projects/${row.id}/overview`" class="project-link">{{ row.name }}</router-link><p :title="row.description">{{ row.description || '暂无项目描述' }}</p></div></div></template></el-table-column>
               <el-table-column label="创建时间" width="160"><template #default="{ row }"><span class="table-date">{{ formatDate(row.created_at) }}</span></template></el-table-column>
               <el-table-column label="最近更新" width="160"><template #default="{ row }"><span class="table-date">{{ formatDate(row.updated_at) }}</span></template></el-table-column>
-              <el-table-column label="操作" width="320" align="right"><template #default="{ row }"><router-link :to="`/projects/${row.id}/requirements`" class="row-link">需求</router-link><router-link :to="`/projects/${row.id}/testcases`" class="row-link">已采纳用例</router-link><el-button link type="primary" :disabled="deletingId !== null" @click="openForm(row)">编辑</el-button><el-button link type="danger" :loading="deletingId === row.id" :disabled="deletingId !== null" @click="removeProject(row)">删除</el-button></template></el-table-column>
+              <el-table-column label="操作" width="550" align="right"><template #default="{ row }"><router-link :to="`/projects/${row.id}/requirements`" class="row-link">需求</router-link><router-link :to="`/projects/${row.id}/knowledge`" class="row-link">知识库</router-link><router-link :to="{path:`/projects/${row.id}/requirements`,query:{agent:'1'}}" class="row-link">助手</router-link><router-link :to="`/projects/${row.id}/testcases`" class="row-link">已采纳用例</router-link><router-link :to="`/projects/${row.id}/execution-tasks`" class="row-link">测试执行</router-link><router-link :to="`/projects/${row.id}/evaluations`" class="row-link">离线评测</router-link><el-button link type="primary" :disabled="deletingId !== null" @click="openForm(row)">编辑</el-button><el-button link type="danger" :loading="deletingId === row.id" :disabled="deletingId !== null" @click="removeProject(row)">删除</el-button></template></el-table-column>
             </el-table>
             <div v-else class="empty-state"><div class="empty-illustration">▦</div><h3>{{ search.trim() ? '没有找到匹配的项目' : '创建你的第一个测试项目' }}</h3><p>{{ search.trim() ? '试试其他关键词，或清空搜索查看全部项目。' : '用一个清晰的名称和简短描述，定义这次测试的范围。' }}</p><el-button v-if="search.trim()" @click="search = ''">清空搜索</el-button><el-button v-else type="primary" @click="openForm()">＋ 新建项目</el-button></div>
           </template>

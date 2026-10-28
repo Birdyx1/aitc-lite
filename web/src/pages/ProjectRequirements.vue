@@ -168,6 +168,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
       <div class="panel-toolbar">
         <div><h2 id="requirement-list-title">需求列表 <span>{{ filtered.length }}</span></h2><p>按最近更新时间排序 · 原文完整保留</p></div>
         <div class="toolbar-actions">
+          <router-link :to="`/projects/${projectId}/knowledge`" class="row-link">项目知识库 →</router-link>
           <el-input v-model="search" placeholder="搜索需求标题" clearable aria-label="搜索需求标题" class="search-input" />
           <el-button :loading="loading" :disabled="busyId !== null || saving" @click="loadRequirements">刷新</el-button>
         </div>

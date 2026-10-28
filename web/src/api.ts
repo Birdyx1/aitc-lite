@@ -715,3 +715,29 @@ export const executionApi={
  history:(pid:number,tid:string,iid:string)=>request<ExecutionEvent[]>(`${executionPath(pid)}/${tid}/items/${iid}/history`),
  complete:(pid:number,id:string,revision:number)=>request<ExecutionTask>(`${executionPath(pid)}/${id}/complete`,{method:'POST',body:JSON.stringify({expected_revision:revision})}),
 }
+
+export interface EvaluationSampleInput {name:string;requirement_title:string;requirement_content:string;feature:Omit<FeatureItem,'id'|'included'>;gold_points:string[];expected_revision:number}
+export interface EvaluationSample {id:string;project_id:number;name:string;revision:number;content_hash:string;updated_at:string;content:{requirement:{title:string;content:string};feature:FeatureItem;gold_points:string[]}}
+export interface EvaluationRunInput {run_id:string;name:string;sample_ids:string[];strategy:'full'|'quick';skill_ids:string[];mock_mode:boolean;use_rag:boolean;rag_top_k:number;rag_rerank:boolean;rag_allow_empty:boolean}
+export interface EvaluationRatio {numerator:number;denominator:number;percent:number|null}
+export interface EvaluationMetrics {sample_count:number;generated_case_count:number;generation_success:EvaluationRatio;judge_completion:EvaluationRatio;judge_sample_completion:EvaluationRatio;judge_usable:EvaluationRatio;scenario_recall:EvaluationRatio;gold_sample_count:number;duplicate_rate:EvaluationRatio;suspect_case_count:number;total_elapsed_ms:number;token_usage:{known_total_tokens:number|null;calls_with_known_usage:number;unknown_usage_calls:number};cost:null;match_method:string;notes:string[]}
+export interface EvaluationResult {id:string;position:number;sample_id:string;sample_snapshot:EvaluationSample;status:string;generation_status:string;judge_status:string;error_message:string;model_call_pending:boolean;case_count:number;timings:Record<string,number>;usage:Record<string,unknown>;knowledge?:Record<string,unknown>|null;messages?:Array<Record<string,unknown>>;cases?:Array<{case_id:string;fields:CaseFields;knowledge_refs:string[];skill_refs:string[]}>;judge_input?:Record<string,unknown>|null;judge_report?:JudgeReport|null;matches?:Array<{point:string;matched:boolean;evidence:Array<{case_id:string;field:string;normalized_excerpt:string}>;method:string}>;duplicate_findings?:Array<Record<string,unknown>>}
+export interface EvaluationRun {id:string;project_id:number;name:string;status:string;error_message:string;config_snapshot:Record<string,unknown>;created_at:string;updated_at:string;metrics:EvaluationMetrics;finished_count:number;sample_count:number;results?:EvaluationResult[]}
+export interface EvaluationComparison {left:EvaluationRun;right:EvaluationRun;common_count:number;common_metrics:{left:EvaluationMetrics;right:EvaluationMetrics};changed_sample_ids:string[];left_only_ids:string[];right_only_ids:string[];config_differences:Array<{field:string;left:unknown;right:unknown}>;metric_definitions_equal:boolean;rows:Array<{sample_id:string;name:string;left_status:string;right_status:string;left_metrics:EvaluationMetrics;right_metrics:EvaluationMetrics}>;note:string}
+const evaluationPath=(pid:number)=>`/projects/${pid}/evaluations`
+export const evaluationApi={
+ samples:(pid:number)=>request<EvaluationSample[]>(`${evaluationPath(pid)}/samples`),
+ add:(pid:number,data:EvaluationSampleInput)=>request<EvaluationSample>(`${evaluationPath(pid)}/samples`,{method:'POST',body:JSON.stringify(data)}),
+ edit:(pid:number,id:string,data:EvaluationSampleInput)=>request<EvaluationSample>(`${evaluationPath(pid)}/samples/${id}`,{method:'PUT',body:JSON.stringify(data)}),
+ remove:(pid:number,sample:EvaluationSample)=>request<void>(`${evaluationPath(pid)}/samples/${sample.id}?expected_revision=${sample.revision}`,{method:'DELETE'}),
+ runs:(pid:number,offset=0)=>request<{total:number;items:EvaluationRun[]}>(`${evaluationPath(pid)}/runs?offset=${offset}&limit=20`),
+ submit:(pid:number,data:EvaluationRunInput)=>request<EvaluationRun>(`${evaluationPath(pid)}/runs`,{method:'POST',body:JSON.stringify(data)}),
+ run:(pid:number,id:string)=>request<EvaluationRun>(`${evaluationPath(pid)}/runs/${id}`),
+ result:(pid:number,rid:string,id:string)=>request<EvaluationResult>(`${evaluationPath(pid)}/runs/${rid}/results/${id}`),
+ compare:(pid:number,left:string,right:string)=>request<EvaluationComparison>(`${evaluationPath(pid)}/compare?left=${left}&right=${right}`),
+ stop:(pid:number,id:string)=>request<EvaluationRun>(`${evaluationPath(pid)}/runs/${id}/stop`,{method:'POST'}),
+}
+
+export interface WorkbenchModel {saved:boolean;ready:boolean;mode:'mock'|'real'|'unconfigured';source:string|null;note:string}
+export interface ProjectWorkbench {project_id:number;name:string;description:string;requirements:number;confirmed_requirements:number;current_confirmed_features:number;included_features:number;current_features_with_generation:number;coverage_note:string;generation_batches:number;drafts:number;review_counts:Record<string,number>;knowledge_documents:number;knowledge_chunks:number;judge_counts:Record<string,number>;judge_note:string;generation_sources:Record<string,number>;generation_tasks:Record<string,number>;vector_tasks:Record<string,number>;evaluation:{samples:number;runs:Record<string,number>;mock_runs:number;real_runs:number};execution:{available:boolean;recording_mode:'manual';task_counts:Record<string,number>;item_stats:ExecutionStats;recent_tasks:ExecutionTaskSummary[];note:string};configuration:Record<'generation'|'embedding'|'rerank'|'judge',WorkbenchModel>;mcp:{bindings:number;current_bindings:number;enabled_tools:number;note:string};next_action:{code:string;title:string;detail:string;path:string};notes:string[]}
+export const workbenchApi={get:(pid:number)=>request<ProjectWorkbench>(`/projects/${pid}/workbench`)}

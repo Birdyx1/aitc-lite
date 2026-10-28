@@ -30,6 +30,9 @@ from .judge_runs import router as judge_runs_router, judge_worker, settle_judge_
 from .agent_sessions import router as agent_router, agent_worker, settle_agent
 from .mcp_settings import router as mcp_router
 from .execution_tasks import router as execution_router
+from .evaluation.api import router as evaluation_router
+from .project_workbench import router as workbench_router
+from .evaluation.runtime import worker as evaluation_worker, settle as settle_evaluations
 
 DEFAULT_DATABASE = Path(__file__).resolve().parents[1] / "data" / "aitc-lite.sqlite3"
 
@@ -44,6 +47,8 @@ def create_app(database_path: Path = DEFAULT_DATABASE, *, llm_transport=None, em
         settle_vector_builds(app)
         settle_judge_runs(app)
         settle_agent(app)
+        settle_evaluations(app)
+        evaluation_task = asyncio.create_task(evaluation_worker(app))
         agent_task = asyncio.create_task(agent_worker(app))
         judge_task = asyncio.create_task(judge_worker(app))
         worker = asyncio.create_task(task_worker(app))
@@ -51,6 +56,10 @@ def create_app(database_path: Path = DEFAULT_DATABASE, *, llm_transport=None, em
         try:
             yield
         finally:
+            evaluation_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await evaluation_task
+            settle_evaluations(app)
             agent_task.cancel()
             with suppress(asyncio.CancelledError):
                 await agent_task
@@ -69,7 +78,7 @@ def create_app(database_path: Path = DEFAULT_DATABASE, *, llm_transport=None, em
             settle_unfinished(app)
             engine.dispose()
 
-    app = FastAPI(title="AITC Lite", version="0.21.0", lifespan=lifespan)
+    app = FastAPI(title="AITC Lite", version="0.23.0", lifespan=lifespan)
     app.state.session_factory = session_factory
     app.state.checkpointer = TaskCheckpointSaver(session_factory)
     # 测试可注入 httpx.MockTransport；真实应用默认使用正常网络传输。
@@ -102,9 +111,13 @@ def create_app(database_path: Path = DEFAULT_DATABASE, *, llm_transport=None, em
     app.include_router(agent_router)
     app.include_router(mcp_router)
     app.include_router(execution_router)
+    app.include_router(evaluation_router)
+    app.include_router(workbench_router)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
+        if "/evaluations" in request.url.path:
+            return JSONResponse(status_code=422, content={"detail": "评测请求无效：检查样本正文、功能点、标准点（每项2–500字）、版本、1–20个不重复样本及策略/Mock/RAG参数。"})
         if "/execution-tasks" in request.url.path:
             return JSONResponse(status_code=422, content={"detail": "执行请求无效：任务名称/环境必填，选择 1–200 条不重复的用例；已执行状态须填写实际结果，检查状态、长度、Unicode 与版本。"})
         if "/mcp" in request.url.path:
@@ -135,7 +148,7 @@ def create_app(database_path: Path = DEFAULT_DATABASE, *, llm_transport=None, em
 
     @app.get("/api/health", tags=["状态"])
     def health():
-        return {"status": "ok", "module": "manual-execution", "version": "0.21.0"}
+        return {"status": "ok", "module": "offline-evaluation", "version": "0.23.0"}
 
     return app
 

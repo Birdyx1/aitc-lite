@@ -36,7 +36,7 @@ async def test_connection(config: ModelConfig, transport=None) -> ConnectionTest
     )
 
 
-async def chat_completion(config: ModelConfig, messages: list[dict], max_tokens: int, transport=None) -> str:
+async def chat_completion(config: ModelConfig, messages: list[dict], max_tokens: int, transport=None, max_response_bytes: int | None = None, usage_sink=None) -> str:
     if not config.base_url or not config.model:
         raise HTTPException(status_code=400, detail="请先保存生成模型配置，或显式开启 Mock 模式。")
     headers = {"Authorization": f"Bearer {config.api_key}"} if config.api_key else {}
@@ -51,10 +51,17 @@ async def chat_completion(config: ModelConfig, messages: list[dict], max_tokens:
                 transport=transport, timeout=config.timeout_seconds,
                 follow_redirects=False, trust_env=False,
             ) as client:
-                response = await client.post(
-                    f"{config.base_url}/chat/completions", headers=headers,
-                    json=payload,
-                )
+                if max_response_bytes is None:
+                    response = await client.post(f"{config.base_url}/chat/completions", headers=headers, json=payload)
+                else:
+                    async with client.stream('POST', f"{config.base_url}/chat/completions", headers=headers, json=payload) as streamed:
+                        data = bytearray()
+                        if streamed.status_code == 200:
+                            async for chunk in streamed.aiter_bytes():
+                                if len(data) + len(chunk) > max_response_bytes:
+                                    raise HTTPException(502, '模型响应超过本次评估的大小上限。')
+                                data.extend(chunk)
+                        response = httpx.Response(streamed.status_code, content=bytes(data))
     except (TimeoutError, httpx.TimeoutException):
         raise HTTPException(status_code=504, detail="模型连接超时，请检查地址、网络或增加超时时间。") from None
     except (httpx.RequestError, httpx.InvalidURL):
@@ -69,6 +76,12 @@ async def chat_completion(config: ModelConfig, messages: list[dict], max_tokens:
         raise HTTPException(status_code=502, detail=f"模型服务返回 HTTP {response.status_code}，请检查根地址、模型名称与服务状态。")
     try:
         body = response.json()
+        if usage_sink is not None:
+            usage = body.get('usage') if isinstance(body, dict) else None
+            clean = {key: value if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 10**12 else None
+                     for key in ('prompt_tokens','completion_tokens','total_tokens')
+                     for value in [usage.get(key) if isinstance(usage, dict) else None]}
+            usage_sink(clean if any(value is not None for value in clean.values()) else None)
         choice = body["choices"][0]
         if not isinstance(choice, dict):
             raise ValueError("invalid choice")

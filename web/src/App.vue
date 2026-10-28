@@ -21,13 +21,16 @@ watch([projectId,()=>route.query.agent],([id,open],previous)=>{if(id!==previous?
       <router-link to="/settings/judge" class="nav-item" :class="{ active: route.path === '/settings/judge' }"><span class="nav-icon">✓</span>Judge 配置</router-link>
       <router-link to="/settings/mcp" class="nav-item"><span class="nav-icon">⇄</span>MCP 服务</router-link>
       <div class="sidebar-note"><span class="status-dot"></span>本地工作空间<small>数据保存在本机 SQLite</small></div>
-      <div class="sidebar-footer">AITC Lite <span>v0.21.0</span></div>
+      <div class="sidebar-footer">AITC Lite <span>v0.23.0</span></div>
     </aside>
     <div class="main-shell">
       <header class="topbar">
         <span><router-link to="/" class="breadcrumb-link">工作空间</router-link><span class="breadcrumb-slash">/</span><strong>{{ route.meta.title }}</strong></span>
         <div class="topbar-actions"><span class="module-badge">{{ route.meta.module }}</span><el-button v-if="projectId" type="primary" plain @click="assistantOpen=true">项目助手</el-button></div>
       </header>
+      <nav v-if="projectId" class="project-navigation" aria-label="项目功能导航">
+        <router-link v-for="item in [{path:'overview',label:'项目工作台'},{path:'requirements',label:'需求与生成'},{path:'knowledge',label:'知识库'},{path:'testcases',label:'已采纳用例'},{path:'execution-tasks',label:'测试执行'},{path:'evaluations',label:'离线评测'},{path:'mcp',label:'MCP 工具'}]" :key="item.path" :to="`/projects/${projectId}/${item.path}`" :class="{active:route.path===`/projects/${projectId}/${item.path}`||route.path.startsWith(`/projects/${projectId}/${item.path}/`) }" :aria-current="route.path===`/projects/${projectId}/${item.path}`||route.path.startsWith(`/projects/${projectId}/${item.path}/`)?'page':undefined">{{item.label}}</router-link>
+      </nav>
       <router-view :key="route.path" />
       <AgentDrawer v-if="projectId" :key="projectId" v-model="assistantOpen" :project-id="projectId" />
     </div>
@@ -35,5 +38,10 @@ watch([projectId,()=>route.query.agent],([id,open],previous)=>{if(id!==previous?
 </template>
 
 <style scoped>
+.project-navigation {display:flex;gap:8px;flex-wrap:wrap;padding:12px 40px;background:#fff;border-bottom:1px solid #e7ebf1;}
+.project-navigation a {padding:8px 12px;border-radius:6px;color:#61718a;font-size:13px;text-decoration:none;}
+.project-navigation a:hover,.project-navigation a.active {background:#edf3fd;color:#315b96;}
+.project-navigation a:focus-visible {outline:2px solid #315b96;outline-offset:2px;}
+@media(max-width:800px){.project-navigation{padding:10px 16px;gap:4px;}}
 .topbar-actions { display:flex;gap:14px;align-items:center; }
 </style>

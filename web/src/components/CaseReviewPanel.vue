@@ -7,7 +7,7 @@ import type { CaseFields, CaseGeneration, CaseReview, CaseReviewInput } from '..
 import { errorMessage } from '../utils'
 
 const props = defineProps<{ projectId: number; requirementId: number; generation: CaseGeneration }>()
-const emit = defineEmits<{ busy: [value: boolean] }>()
+const emit = defineEmits<{ busy: [value: boolean]; changed: [] }>()
 const items = ref<CaseReview[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -51,6 +51,7 @@ async function submit(item: CaseReview, payload: CaseReviewInput) {
     const saved = await reviewsApi.save(props.projectId, props.requirementId, props.generation.id, item.draft_id, payload)
     items.value = items.value.map(row => row.draft_id === saved.draft_id ? saved : row)
     error.value = ''
+    emit('changed')
     return true
   } catch (cause) {
     const message = errorMessage(cause)

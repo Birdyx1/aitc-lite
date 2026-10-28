@@ -137,6 +137,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
       <div><div class="eyebrow">MODEL SETTINGS</div><h1>连接你的生成模型</h1><p>先验证模型连接，再逐步接入需求分析和用例生成。</p></div>
       <el-button :loading="loading" :disabled="saving || testing" @click="loadSettings">重新加载</el-button>
     </div>
+    <p class="field-help feature-notice"><router-link to="/settings/embedding">配置独立的 Embedding 向量模型 →</router-link></p>
     <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon />
     <section v-else class="project-panel settings-panel" aria-labelledby="settings-title">
       <div class="panel-toolbar">
